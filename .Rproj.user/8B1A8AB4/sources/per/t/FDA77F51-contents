@@ -54,8 +54,8 @@ svy_check_model <- function(model) {
     rownames_to_column("Variável") |> select('Variável', 'GVIF') |> 
     rename(VIF = GVIF) |> 
     mutate('Variável' = c("PTN", "Atividade Fisica", "CHO", "LIP", "Gênero",
-                        "Peso corporal", "Altura", "Idade", "Uso glicocorticoide",
-                        "Interação PTN:Atv Fisica"),
+                          "Peso corporal", "Altura", "Idade", "Uso glicocorticoide",
+                          "Interação PTN:Atv Fisica"),
            VIF = round(VIF, 2)) |> as.data.frame() |> tableGrob(rows = NULL)
   
   p_full <- (linearity_p_std + normality_p) / (qq_p_std + vif_table)
@@ -100,22 +100,10 @@ load("data/nhanes_raw_dataframe.Rdata")
 # nutrients
 
 rh_dxa_all <- nhanes_raw_dataframe |> 
-  mutate(kcal = case_when(
-    DRDINT.x == 2 ~ ((DR1TKCAL+DR2TKCAL)/2), # these lines calculate the mean between two dietary recalls, when two are available
-    DRDINT.x == 1 ~ DR1TKCAL # or just pick the first one that is available, if only one is.
-  )) |> 
-  mutate(PTN = case_when(
-    DRDINT.x == 2 ~ ((DR1TPROT+DR2TPROT)/2), # same for other nutrients.
-    DRDINT.x == 1 ~ DR1TPROT
-  )) |> 
-  mutate(CHO = case_when(
-    DRDINT.x == 2 ~ ((DR1TCARB+DR2TCARB)/2),
-    DRDINT.x == 1 ~ DR1TCARB
-  )) |> 
-  mutate(LIP = case_when(
-    DRDINT.x == 2 ~ ((DR1TTFAT+DR2TTFAT)/2),
-    DRDINT.x == 1 ~ DR1TTFAT
-  ))
+  mutate(kcal = DR1TKCAL,
+         PTN = DR1TPROT,
+         CHO = DR1TCARB,
+         LIP = DR1TTFAT)
 
 # other relevant variables
 
@@ -132,7 +120,7 @@ rh_dxa_all <- rh_dxa_all |>
          femur_t_score = case_when(
            RIAGENDR == "1" ~ ((DXXOFBMD-femur_popmean_male)/femur_popsd_male),
            RIAGENDR == "2" ~ ((DXXOFBMD-femur_popmean_female)/femur_popsd_female))
-         ) |> 
+  ) |> 
   mutate(femurneck_t_score = case_when(
     RIAGENDR == "1" ~ ((DXXNKBMD-femurneck_popmean_male)/femurneck_popsd_male),
     RIAGENDR == "2" ~ ((DXXNKBMD-femurneck_popmean_female)/femurneck_popsd_female))) |> 
@@ -155,10 +143,7 @@ rh_dxa_all <- rh_dxa_all |>
 # herein we use the 24h recall day 1 weight, and divide by the number of cycles (6)
 
 rh_dxa_all <- rh_dxa_all |> 
-  mutate(weights_all = case_when(
-    DRDINT.x == 2 ~ (WTDR2D.x * (1/7)),
-    DRDINT.x == 1 ~ (WTDRD1.x * (1/7))), 
-    weights_all_exam = WTMEC2YR * (1/7))
+  mutate(weights_all = WTDRD1.x * (1/7))
 
 # calculating physical activity
 # obtain METs for each domain and intensity, then sum it up, then classify
@@ -308,9 +293,9 @@ NHANES_subset_lm <- subset(NHANES_subset_lm, DXAEXSTS == "1" & !is.na(DXDTOLE) #
 
 
 NHANES_subset_sarc <- subset(NHANES_subset_lm, DXAEXSTS == "1" & !is.na(DXDTOLE) # make sure subsets
-                           & !is.na(PTN) & !is.na(CHO) & !is.na(LIP) # have available data on all covariates
-                           & !is.na(RIAGENDR) & !is.na(BMXWT) & !is.na(RIDAGEYR)
-                           & !is.na(total_vig_and_mod_min) & !is.na(days_gc) & !is.na(BMXHT) & !is.na(sarc_class))
+                             & !is.na(PTN) & !is.na(CHO) & !is.na(LIP) # have available data on all covariates
+                             & !is.na(RIAGENDR) & !is.na(BMXWT) & !is.na(RIDAGEYR)
+                             & !is.na(total_vig_and_mod_min) & !is.na(days_gc) & !is.na(BMXHT) & !is.na(sarc_class))
 
 nrow(NHANES_subset_lm$variables) # subset sample size
 nrow(NHANES_subset_sarc$variables) # subset sample size
@@ -349,7 +334,7 @@ sample_dat |> select(BMXWT, BMXHT, BMXBMI, days_gc, total_vig_and_mod_min, kcal,
 
 lm_ptn_total_simple <- svyglm(DXDTOLE ~ PTN + total_vig_and_mod_min + 
                                 CHO + LIP + RIAGENDR + BMXWT + BMXHT +
-                                 + RIDAGEYR + days_gc,
+                                + RIDAGEYR + days_gc,
                               design=NHANES_subset_lm) 
 
 car::Anova(lm_ptn_total_simple, "II", "F")
@@ -363,18 +348,18 @@ plot(predict_response(lm_ptn_total_simple, "PTN [all]"),
   theme_avp()
 
 lm_ptnPoly2_total_simple <- svyglm(DXDTOLE ~ poly(PTN, 2) + total_vig_and_mod_min + CHO + LIP + 
-                                   RIAGENDR + BMXWT + BMXHT + RIDAGEYR + days_gc,
+                                     RIAGENDR + BMXWT + BMXHT + RIDAGEYR + days_gc,
                                    design=NHANES_subset_lm)
 
 lm_ptnPoly3_total_simple <- svyglm(DXDTOLE ~ poly(PTN, 3) + total_vig_and_mod_min + CHO + LIP + RIAGENDR + 
                                      BMXWT + BMXHT
-                                    + RIDAGEYR + days_gc,
-                                    design=NHANES_subset_lm) 
+                                   + RIDAGEYR + days_gc,
+                                   design=NHANES_subset_lm) 
 
 lm_ptnns3_total_simple <- svyglm(DXDTOLE ~ splines::ns(PTN, df=3) + total_vig_and_mod_min + 
                                    CHO + LIP + RIAGENDR + BMXWT + BMXHT
-                                  + RIDAGEYR + days_gc,
-                                  design=NHANES_subset_lm) 
+                                 + RIDAGEYR + days_gc,
+                                 design=NHANES_subset_lm) 
 
 AIC(lm_ptn_total_simple, lm_ptnPoly2_total_simple,
     lm_ptnPoly3_total_simple, lm_ptnns3_total_simple) # Modelo linear simples com menor AIC
@@ -399,8 +384,8 @@ plot(predict_response(lm_ptn_total_simple, "total_vig_and_mod_min [all]"),
 
 lm_ptn_total_poly2_simple <- svyglm(DXDTOLE ~ PTN + poly(total_vig_and_mod_min, 2) + CHO + LIP + RIAGENDR + 
                                       BMXWT + BMXHT 
-                              + RIDAGEYR + days_gc,
-                              design=NHANES_subset_lm) 
+                                    + RIDAGEYR + days_gc,
+                                    design=NHANES_subset_lm) 
 
 lm_ptn_total_poly3_simple <- svyglm(DXDTOLE ~ PTN + poly(total_vig_and_mod_min, 3) + CHO + LIP + 
                                       RIAGENDR + BMXWT + BMXHT
@@ -409,8 +394,8 @@ lm_ptn_total_poly3_simple <- svyglm(DXDTOLE ~ PTN + poly(total_vig_and_mod_min, 
 
 lm_ptn_total_ns3_simple <- svyglm(DXDTOLE ~ PTN + splines::ns(total_vig_and_mod_min, df=3) + CHO + LIP + 
                                     RIAGENDR + BMXWT + BMXHT
-                                    + RIDAGEYR + days_gc,
-                                    design=NHANES_subset_lm) 
+                                  + RIDAGEYR + days_gc,
+                                  design=NHANES_subset_lm) 
 
 AIC(lm_ptn_total_simple, lm_ptn_total_poly2_simple,
     lm_ptn_total_poly3_simple, lm_ptn_total_ns3_simple)
@@ -418,7 +403,6 @@ AIC(lm_ptn_total_simple, lm_ptn_total_poly2_simple,
 ## spline natural com 3 graus de liberdade mostrou menores AIC
 
 anova(lm_ptn_total_simple, lm_ptn_total_ns3_simple) ## diferença significativa entre modelos
-svy_check_model(lm_ptn_total_ns3_simple) # pressupostos atingidos
 
 plot(predict_response(lm_ptn_total_ns3_simple, "total_vig_and_mod_min [all]"), 
      show_residuals=TRUE, show_residuals_line = TRUE,
@@ -436,10 +420,10 @@ lm_interaction  <- svyglm(DXDTOLE ~ PTN *
                           design=NHANES_subset_lm) 
 
 lm_interaction_centered  <- svyglm(DXDTOLE ~ scale(PTN, center=TRUE, scale=FALSE) * 
-                            scale(splines::ns(total_vig_and_mod_min, df=3), center=TRUE, scale=FALSE) + CHO + LIP + 
-                                          RIAGENDR + BMXWT + BMXHT +
-                                        + RIDAGEYR + days_gc,
-                                        design=NHANES_subset_lm) 
+                                     scale(splines::ns(total_vig_and_mod_min, df=3), center=TRUE, scale=FALSE) + CHO + LIP + 
+                                     RIAGENDR + BMXWT + BMXHT +
+                                     + RIDAGEYR + days_gc,
+                                   design=NHANES_subset_lm) 
 
 car::Anova(lm_interaction, type="II", test="F")
 
@@ -449,36 +433,36 @@ AIC(lm_interaction, lm_ptn_total_ns3_simple)
 
 anova(lm_ptn_total_ns3_simple, 
       lm_interaction) # O modelo com interação abaixa a AIC ainda mais 
-                                    # e apresenta diferença significativa no F test.
+# e apresenta diferença significativa no F test.
 
 svy_check_model(lm_interaction_centered)
 
-ggsave("figuras/lm_finalmodel_assump.png", dpi=600, unit="in", height=8, width=8)
+#ggsave("figuras/lm_finalmodel_assump.png", dpi=600, unit="in", height=8, width=8)
 
 # gráficos de predição
 
-pred_1 <- ggpredict(lm_interaction1, 
+pred_1 <- ggpredict(lm_interaction, 
                     terms=c("PTN[1:500]", "total_vig_and_mod_min[0:500]")) |> as_tibble() |> # predições nos valores específicos 
-          rename(PTN = x, atv_fisica = group)
+  rename(PTN = x, atv_fisica = group)
 
 pred_1_selected <- pred_1 |> filter(atv_fisica %in% c(0, 100, 200, 300, 400, 500)) 
 
 (
-lm_pred_p_1 <- ggplot(pred_1_selected, aes(x=PTN, y=predicted, color=atv_fisica, fill=atv_fisica,
-                            ymin=conf.low, ymax=conf.high)) +
-  facet_wrap(~atv_fisica, labeller = labeller(atv_fisica = ~ paste(.x, "min/sem"))) +
-  geom_ribbon(aes(ymin=conf.low, ymax=conf.high), alpha=.35, color=NA) +
-  geom_line() +
-  labs(x="Ingestão de proteína (g/dia)", y="Massa magra predita (kg)", 
-       color="Atividade física\nmoderada e vigorosa\n(min/sem)",
-       fill="Atividade física\nmoderada e vigorosa\n(min/sem)") +
-  scale_color_discrete_sequential(labels=paste0(seq(0, 500, 100), " min/sem"), palette = "Reds", l1 = 25, c2 = 150, p1 = 1) + 
-  scale_fill_discrete_sequential(labels=paste0(seq(0, 500, 100), " min/sem"), palette = "Reds", l1 = 25, c2 = 150, p1 = 1) + 
-  scale_x_continuous(limits=c(25, 250)) +
-  scale_y_continuous(labels = scales::label_number(scale = 1e-3),
-                     limits=c(51000, 64000), breaks=seq(51000, 64000, 2500)) +
-  guides(color='none', fill='none') +
-  theme_avp()
+  lm_pred_p_1 <- ggplot(pred_1_selected, aes(x=PTN, y=predicted, color=atv_fisica, fill=atv_fisica,
+                                             ymin=conf.low, ymax=conf.high)) +
+    facet_wrap(~atv_fisica, labeller = labeller(atv_fisica = ~ paste(.x, "min/sem"))) +
+    geom_ribbon(aes(ymin=conf.low, ymax=conf.high), alpha=.35, color=NA) +
+    geom_line() +
+    labs(x="Ingestão de proteína (g/dia)", y="Massa magra predita (kg)", 
+         color="Atividade física\nmoderada e vigorosa\n(min/sem)",
+         fill="Atividade física\nmoderada e vigorosa\n(min/sem)") +
+    scale_color_discrete_sequential(labels=paste0(seq(0, 500, 100), " min/sem"), palette = "Reds", l1 = 25, c2 = 150, p1 = 1) + 
+    scale_fill_discrete_sequential(labels=paste0(seq(0, 500, 100), " min/sem"), palette = "Reds", l1 = 25, c2 = 150, p1 = 1) + 
+    scale_x_continuous(limits=c(25, 250)) +
+    scale_y_continuous(labels = scales::label_number(scale = 1e-3),
+                       limits=c(49000, 62000), breaks=seq(49000, 62000, 2500)) +
+    guides(color='none', fill='none') +
+    theme_avp()
 )
 
 # gráfico de slope para visualizar interação
@@ -490,15 +474,15 @@ pred_1_slopes <- pred_1 |> filter(PTN %in% c(1, 2)) |>
   mutate(atv_fisica = as.numeric(atv_fisica))
 
 (
-lm_pred_p_2 <- ggplot(pred_1_slopes, aes(x=atv_fisica, y=slope)) +
-  geom_line(aes(group=1)) +
-  geom_vline(xintercept=230, linetype="dashed", alpha=.25) +
-  annotate(geom='label', label='230 min.', x=230, y=19.85, size=2.5) +
-  scale_x_continuous(breaks=seq(0, 500, 100)) +
-  scale_y_continuous(breaks=c(seq(10, 20, 2.5), 19.1),
-                     limits=c(9, 20)) +
-  theme_avp() +
-  labs(x="Atividade física moderada e vigorosa (min/sem)", y="Slope para ingestão de proteína")
+  lm_pred_p_2 <- ggplot(pred_1_slopes, aes(x=atv_fisica, y=slope)) +
+    geom_line(aes(group=1)) +
+    geom_vline(xintercept=240, linetype="dashed", alpha=.25) +
+    annotate(geom='label', label='240 min.', x=240, y=16.7, size=2.5) +
+    scale_x_continuous(breaks=seq(0, 500, 100)) +
+    scale_y_continuous(breaks=c(seq(-6, 20, 4), 16.7),
+                       limits=c(-6, 20)) +
+    theme_avp() +
+    labs(x="Atividade física moderada e vigorosa (min/sem)", y="Slope para ingestão de proteína")
 )
 
 (lm_pred_p_1 / lm_pred_p_2) +
@@ -512,15 +496,13 @@ lm_pred_p_2 <- ggplot(pred_1_slopes, aes(x=atv_fisica, y=slope)) +
 # simple models
 
 femur_ptn_total_simple <- svyglm(DXXNKBMD ~ PTN + total_vig_and_mod_min + 
-                                CHO + LIP + RIAGENDR + BMXWT + BMXHT +
-                                + RIDAGEYR + days_gc,
-                              design=NHANES_subset_femur) 
+                                   CHO + LIP + RIAGENDR + BMXWT + BMXHT +
+                                   + RIDAGEYR + days_gc,
+                                 design=NHANES_subset_femur) 
 
 summary(femur_ptn_total_simple)
 
 car::Anova(femur_ptn_total_simple, "II", "F")
-
-svy_check_model(femur_ptn_total_simple)
 
 plot(predict_response(femur_ptn_total_simple, "PTN [all]"), 
      show_residuals=TRUE, show_residuals_line = TRUE,
@@ -531,27 +513,27 @@ plot(predict_response(femur_ptn_total_simple, "PTN [all]"),
   theme_avp()
 
 femur_ptnPoly2_total_simple <- svyglm(DXXNKBMD ~ poly(PTN, 2) + total_vig_and_mod_min + CHO + LIP + 
-                                     RIAGENDR + BMXWT + BMXHT + RIDAGEYR + days_gc,
-                                   design=NHANES_subset_femur)
+                                        RIAGENDR + BMXWT + BMXHT + RIDAGEYR + days_gc,
+                                      design=NHANES_subset_femur)
 
 femur_ptnPoly3_total_simple <- svyglm(DXXNKBMD ~ poly(PTN, 3) + total_vig_and_mod_min + CHO + LIP + RIAGENDR + 
-                                     BMXWT + BMXHT
-                                   + RIDAGEYR + days_gc,
-                                   design=NHANES_subset_femur) 
+                                        BMXWT + BMXHT
+                                      + RIDAGEYR + days_gc,
+                                      design=NHANES_subset_femur) 
 
 femur_ptnns3_total_simple <- svyglm(DXXNKBMD ~ splines::ns(PTN, df=3) + total_vig_and_mod_min + 
-                                   CHO + LIP + RIAGENDR + BMXWT + BMXHT
-                                 + RIDAGEYR + days_gc,
-                                 design=NHANES_subset_femur) 
+                                      CHO + LIP + RIAGENDR + BMXWT + BMXHT
+                                    + RIDAGEYR + days_gc,
+                                    design=NHANES_subset_femur) 
 
 AIC(femur_ptn_total_simple, femur_ptnPoly2_total_simple,
-    femur_ptnPoly3_total_simple, femur_ptnns3_total_simple) # Fit marginalmente melhor no quarto modelo com splines
+    femur_ptnPoly3_total_simple, femur_ptnns3_total_simple) # Fit marginalmente melhor no segundo modelo com polinomial quadrado
 
 anova(femur_ptn_total_simple, femur_ptnPoly2_total_simple) 
 anova(femur_ptn_total_simple, femur_ptnPoly3_total_simple) 
-anova(femur_ptn_total_simple, femur_ptnns3_total_simple) # Ausencia de diferença com qualquer outro fit
+anova(femur_ptn_total_simple, femur_ptnns3_total_simple) # Diferença marginalmente com polinomial quadrado
 
-## Mantemos o modelo linear
+## Mantemos o modelo com polinomial quadrático
 
 # Agora olhando para a atv física
 
@@ -563,65 +545,41 @@ plot(predict_response(femur_ptn_total_simple, "total_vig_and_mod_min [all]"),
        title="Valores preditos de proteína vs. resíduos parciais") +
   theme_avp()
 
-femur_ptn_total_poly2_simple <- svyglm(DXXNKBMD ~ PTN + poly(total_vig_and_mod_min, 2) + CHO + LIP + RIAGENDR + 
-                                      BMXWT + BMXHT 
-                                    + RIDAGEYR + days_gc,
-                                    design=NHANES_subset_femur) 
+femur_ptn_total_poly2_simple <- svyglm(DXXNKBMD ~ poly(PTN, 2) + poly(total_vig_and_mod_min, 2) + CHO + LIP + RIAGENDR + 
+                                         BMXWT + BMXHT 
+                                       + RIDAGEYR + days_gc,
+                                       design=NHANES_subset_femur) 
 
-femur_ptn_total_poly3_simple <- svyglm(DXXNKBMD ~ PTN + poly(total_vig_and_mod_min, 3) + CHO + LIP + 
-                                      RIAGENDR + BMXWT + BMXHT
-                                    + RIDAGEYR + days_gc,
-                                    design=NHANES_subset_femur) 
+femur_ptn_total_poly3_simple <- svyglm(DXXNKBMD ~ poly(PTN, 2) + poly(total_vig_and_mod_min, 3) + CHO + LIP + 
+                                         RIAGENDR + BMXWT + BMXHT
+                                       + RIDAGEYR + days_gc,
+                                       design=NHANES_subset_femur) 
 
-femur_ptn_total_ns3_simple <- svyglm(DXXNKBMD ~ PTN + splines::ns(total_vig_and_mod_min, df=3) + CHO + LIP + 
-                                    RIAGENDR + BMXWT + BMXHT
-                                  + RIDAGEYR + days_gc,
-                                  design=NHANES_subset_femur) 
+femur_ptn_total_ns3_simple <- svyglm(DXXNKBMD ~ poly(PTN, 2) + splines::ns(total_vig_and_mod_min, df=3) + CHO + LIP + 
+                                       RIAGENDR + BMXWT + BMXHT
+                                     + RIDAGEYR + days_gc,
+                                     design=NHANES_subset_femur) 
 
 AIC(femur_ptn_total_simple, femur_ptn_total_poly2_simple,
     femur_ptn_total_poly3_simple, femur_ptn_total_ns3_simple) ## Terceiro modelo com poly 3 mostrou melhor fit
 
-anova(femur_ptn_total_simple, femur_ptn_total_ns3_simple) ## diferença significativa entre modelos
-svy_check_model(femur_ptn_total_poly3_simple) # pressupostos atingidos
-
-plot(predict_response(femur_ptn_total_poly3_simple, "total_vig_and_mod_min"), 
-     show_residuals=TRUE, show_residuals_line = TRUE,
-     dot_size=.5) +
-  labs(x="Minutos de atividade física\nmoderada a vigorosa", y="DMO colo femural", 
-       title="Valores preditos de proteína vs. resíduos parciais") +
-  theme_avp() # boa concordância da linha predita com a linha de resíduos
+anova(femur_ptnPoly2_total_simple, femur_ptn_total_poly3_simple) ## diferença significativa entre modelos
 
 # checando interação
 
-femur_interaction <- svyglm(DXXNKBMD ~ PTN * poly(total_vig_and_mod_min, 3) + CHO + LIP + 
-                            RIAGENDR + BMXWT + BMXHT +
-                            + RIDAGEYR + days_gc,
-                          design=NHANES_subset_femur) 
-
-femur_ptn_total_ns3_simple <- svyglm(DXXNKBMD ~ PTN + splines::ns(total_vig_and_mod_min, df=3) + CHO + LIP + 
-                                       RIAGENDR + BMXWT + BMXHT
-                                     + RIDAGEYR + days_gc,
-                                     design=NHANES_subset_femur) 
+femur_interaction <- svyglm(DXXNKBMD ~ poly(PTN, 2) * poly(total_vig_and_mod_min, 3) + CHO + LIP + 
+                              RIAGENDR + BMXWT + BMXHT +
+                              + RIDAGEYR + days_gc,
+                            design=NHANES_subset_femur) 
 
 car::Anova(femur_interaction, type="II", test="F")
 
 summary(femur_interaction)
 
-AIC(femur_interaction, femur_ptn_total_poly3_simple)
+AIC(femur_interaction, femur_ptnPoly2_total_simple)
 
-anova(femur_interaction, femur_ptn_total_poly3_simple) # O modelo com interação abaixa a AIC ainda mais 
-                                                       # e apresenta diferença significativa no F test.
-
-femur_interaction_centered <- svyglm(DXXNKBMD ~ scale(PTN, center=TRUE, scale=FALSE) * 
-                                       scale(poly(total_vig_and_mod_min, 3), center=TRUE, scale=FALSE)
-                                     + CHO + LIP + 
-                              RIAGENDR + BMXWT + BMXHT +
-                              + RIDAGEYR + days_gc,
-                            design=NHANES_subset_femur) 
-
-svy_check_model(femur_interaction_centered)
-
-ggsave("figuras/femur_finalmodel_assump.png", dpi=600, unit="in", height=8, width=8)
+anova(femur_interaction, femur_ptnPoly2_total_simple) # O modelo com interação abaixa a AIC ainda mais 
+# mas sem diferença significativa no teste F
 
 # gráficos de predição
 
@@ -635,7 +593,7 @@ pred_1_selected <- pred_1 |> filter(atv_fisica %in% c(0, 100, 200, 300, 400, 500
 
 (
   femur_pred_p_1 <- ggplot(pred_1_selected, aes(x=PTN, y=predicted, color=atv_fisica, fill=atv_fisica,
-                                             ymin=conf.low, ymax=conf.high)) +
+                                                ymin=conf.low, ymax=conf.high)) +
     facet_wrap(~atv_fisica, labeller = labeller(atv_fisica = ~ paste(.x, "min/sem"))) +
     geom_ribbon(aes(ymin=conf.low, ymax=conf.high), alpha=.35, color=NA) +
     geom_line() +
@@ -644,7 +602,8 @@ pred_1_selected <- pred_1 |> filter(atv_fisica %in% c(0, 100, 200, 300, 400, 500
          fill="Atividade física\nmoderada e vigorosa\n(min/sem)") +
     scale_color_discrete_sequential(labels=paste0(seq(0, 500, 100), " min/sem"), palette = "Reds", l1 = 25, c2 = 150, p1 = 1) + 
     scale_fill_discrete_sequential(labels=paste0(seq(0, 500, 100), " min/sem"), palette = "Reds", l1 = 25, c2 = 150, p1 = 1) + 
-    scale_x_continuous(limits=c(25, 250)) +
+    scale_x_continuous(limits=c(25, 500)) +
+    scale_y_continuous(limits=c(.8, .85), breaks=seq(.8, .85, .01)) +
     guides(color='none', fill='none') +
     theme_avp()
 )
@@ -663,8 +622,8 @@ pred_1_slopes <- pred_1 |> filter(PTN %in% c(1, 2)) |>
     #geom_vline(xintercept=230, linetype="dashed", alpha=.25) +
     #annotate(geom='label', label='230 min.', x=230, y=19.85, size=2.5) +
     scale_x_continuous(breaks=seq(0, 500, 100)) +
-    scale_y_continuous(breaks=c(seq(0, 0.05, 0.01)),
-                       limits=c(0, 0.05)) +
+    scale_y_continuous(breaks=c(seq(0, 0.01, 0.0025)),
+                       limits=c(0, 0.01)) +
     theme_avp() +
     labs(x="Atividade física moderada e vigorosa (min/sem)", y="Slope para aumento de\n 100 g de proteína")
 )
@@ -680,15 +639,13 @@ pred_1_slopes <- pred_1 |> filter(PTN %in% c(1, 2)) |>
 # sarc
 
 sarc_model_ptn_simple <- svyglm(sarc_class ~ PTN + total_vig_and_mod_min + CHO + LIP + 
-                               RIAGENDR + BMXWT + BMXHT +
-                               + RIDAGEYR + days_gc, family=quasibinomial(),
-                             design=NHANES_subset_sarc)
+                                  RIAGENDR + BMXWT + BMXHT +
+                                  + RIDAGEYR + days_gc, family=quasibinomial(),
+                                design=NHANES_subset_sarc)
 
 summary(sarc_model_ptn_simple)
 
 car::Anova(sarc_model_ptn_simple, "II", "F")
-
-svy_check_model(sarc_model_ptn_simple)
 
 plot(predict_response(sarc_model_ptn_simple, "PTN [all]"), 
      show_residuals=TRUE, show_residuals_line = TRUE,
@@ -715,7 +672,7 @@ sarc_model_ptnNs3_simple <- svyglm(sarc_class ~ ns(PTN, 3) + total_vig_and_mod_m
 AIC(sarc_model_ptn_simple, sarc_model_ptnPoly2_simple,
     sarc_model_ptnPoly3_simple, sarc_model_ptnNs3_simple) # Modelo com polinomial 2 grau parece ter melhor fit
 
-anova(sarc_model_ptn_simple, sarc_model_ptnPoly2_simple) 
+anova(sarc_model_ptn_simple, sarc_model_ptnPoly2_simple) # confirmado pelo teste
 anova(sarc_model_ptn_simple, sarc_model_ptnPoly3_simple) 
 anova(sarc_model_ptn_simple, sarc_model_ptnNs3_simple) 
 
@@ -756,9 +713,9 @@ sarc_model_atvPoly2_simple <- svyglm(sarc_class ~ poly(PTN, 2) + poly(total_vig_
                                      design=NHANES_subset_sarc) 
 
 sarc_model_atvPoly3_simple <- svyglm(sarc_class ~ poly(PTN, 2) + poly(total_vig_and_mod_min, 3) + CHO + LIP + 
-                                     RIAGENDR + BMXWT + BMXHT +
-                                     + RIDAGEYR + days_gc, family=quasibinomial(),
-                                   design=NHANES_subset_sarc) 
+                                       RIAGENDR + BMXWT + BMXHT +
+                                       + RIDAGEYR + days_gc, family=quasibinomial(),
+                                     design=NHANES_subset_sarc) 
 
 sarc_model_atvNs3_simple <- svyglm(sarc_class ~ poly(PTN, 2) + ns(total_vig_and_mod_min, 3) + CHO + LIP + 
                                      RIAGENDR + BMXWT + BMXHT +
@@ -770,36 +727,33 @@ AIC(sarc_model_atv_simple,
     sarc_model_atvPoly3_simple,
     sarc_model_atvNs3_simple) ## Modelo linear parece o mais adequado
 
+anova(sarc_model_atv_simple, sarc_model_atvPoly2_simple) # confirmado pelo teste, ausencia de diferenças
+anova(sarc_model_atv_simple, sarc_model_atvPoly3_simple) 
+anova(sarc_model_atv_simple, sarc_model_atvNs3_simple) 
+
 # Devido a erros no predict svyglm, precisamos recomputar o modelo com os valores polinomiais já calculados
 
 NHANES_subset_sarc <- update(NHANES_subset_sarc, PTN_poly1 = poly(NHANES_subset_sarc$variables$PTN, 2)[,1])
 NHANES_subset_sarc <- update(NHANES_subset_sarc, PTN_poly2 = poly(NHANES_subset_sarc$variables$PTN, 2)[,2])
 
-sarc_model_atvPoly2_simple_refitted <- svyglm(sarc_class ~ PTN_poly1 + PTN_poly2 + poly(total_vig_and_mod_min, 2) + CHO + LIP + 
-                                       RIAGENDR + BMXWT + BMXHT +
-                                       + RIDAGEYR + days_gc, family=quasibinomial(),
-                                     design=NHANES_subset_sarc) 
+sarc_model_atvPoly2_simple_refitted <- svyglm(sarc_class ~ PTN_poly1 + PTN_poly2 + total_vig_and_mod_min + CHO + LIP + 
+                                                RIAGENDR + BMXWT + BMXHT +
+                                                + RIDAGEYR + days_gc, family=quasibinomial(),
+                                              design=NHANES_subset_sarc) 
 
 ggpredict(sarc_model_atvPoly2_simple_refitted, "total_vig_and_mod_min [all]") |> plot()
 
 # interação
 
-sarc_interaction <- svyglm(sarc_class ~ poly(PTN, 2) * poly(total_vig_and_mod_min, 2) + CHO + LIP + 
+sarc_interaction <- svyglm(sarc_class ~ poly(PTN, 2) * total_vig_and_mod_min + CHO + LIP + 
                              RIAGENDR + BMXWT + BMXHT +
                              + RIDAGEYR + days_gc, family=quasibinomial(),
                            design=NHANES_subset_sarc) 
 
 car::Anova(sarc_interaction, "II", "F")
 
-AIC(sarc_model_atvPoly2_simple, sarc_interaction) ## interação não significativa e AIC pior no modelo 
-anova(sarc_model_atvPoly2_simple, sarc_interaction)
-
-sarc_interaction_centered <- svyglm(sarc_class ~ scale(poly(PTN, 2), center=TRUE, scale=FALSE) * 
-                                     scale(poly(total_vig_and_mod_min, 2), center=TRUE, scale=FALSE) + 
-                                      CHO + LIP + 
-                                     RIAGENDR + BMXWT + BMXHT +
-                                     + RIDAGEYR + days_gc, family=quasibinomial(),
-                                   design=NHANES_subset_sarc)
+AIC(sarc_model_atv_simple, sarc_interaction) ## interação não significativa e AIC pior no modelo 
+anova(sarc_model_atv_simple, sarc_interaction)
 
 # gráficos de predição
 
@@ -813,7 +767,7 @@ pred_1_selected <- pred_1 |> filter(atv_fisica %in% c(0, 100, 200, 300, 400, 500
 
 (
   sarc_pred_p_1 <- ggplot(pred_1_selected, aes(x=PTN, y=predicted, color=atv_fisica, fill=atv_fisica,
-                                                ymin=conf.low, ymax=conf.high)) +
+                                               ymin=conf.low, ymax=conf.high)) +
     facet_wrap(~atv_fisica, labeller = labeller(atv_fisica = ~ paste(.x, "min/sem"))) +
     geom_ribbon(aes(ymin=conf.low, ymax=conf.high), alpha=.25, color=NA) +
     geom_line() +
@@ -823,8 +777,8 @@ pred_1_selected <- pred_1 |> filter(atv_fisica %in% c(0, 100, 200, 300, 400, 500
     scale_color_discrete_sequential(labels=paste0(seq(0, 500, 100), " min/sem"), palette = "Reds", l1 = 25, c2 = 150, p1 = 1) + 
     scale_fill_discrete_sequential(labels=paste0(seq(0, 500, 100), " min/sem"), palette = "Reds", l1 = 25, c2 = 150, p1 = 1) + 
     scale_x_continuous(limits=c(25, 250)) +
-    scale_y_continuous(breaks=seq(0.06, 0.13, 0.01),
-                       labels=paste0(seq(6, 13, 1), "%")) +
+    scale_y_continuous(breaks=seq(0.06, 0.14, 0.01),
+                       labels=paste0(seq(6, 14, 1), "%")) +
     guides(color='none', fill='none') +
     theme_avp()
 )
@@ -834,9 +788,9 @@ ggsave("figuras/plot_sarc_1.png", dpi=600, unit="in", height=6, width=6)
 # osteo
 
 osteo_model_ptn_simple <- svyglm(femurneck_osteoporosis ~ PTN + total_vig_and_mod_min + CHO + LIP + 
-                                  RIAGENDR + BMXWT + BMXHT +
-                                  + RIDAGEYR + days_gc, family=quasibinomial(),
-                                design=NHANES_subset_femur)
+                                   RIAGENDR + BMXWT + BMXHT +
+                                   + RIDAGEYR + days_gc, family=quasibinomial(),
+                                 design=NHANES_subset_femur)
 
 summary(osteo_model_ptn_simple)
 
@@ -850,19 +804,19 @@ plot(predict_response(sarc_model_ptn_simple, "PTN [all]"),
   theme_avp()
 
 osteo_model_ptnPoly2_simple <- svyglm(femurneck_osteoporosis ~ poly(PTN, 2) + total_vig_and_mod_min + CHO + LIP + 
-                                       RIAGENDR + BMXWT + BMXHT +
-                                       + RIDAGEYR + days_gc, family=quasibinomial(),
-                                     design=NHANES_subset_femur)
+                                        RIAGENDR + BMXWT + BMXHT +
+                                        + RIDAGEYR + days_gc, family=quasibinomial(),
+                                      design=NHANES_subset_femur)
 
 osteo_model_ptnPoly3_simple <- svyglm(femurneck_osteoporosis ~ poly(PTN, 3) + total_vig_and_mod_min + CHO + LIP + 
-                                       RIAGENDR + BMXWT + BMXHT +
-                                       + RIDAGEYR + days_gc, family=quasibinomial(),
-                                     design=NHANES_subset_femur) 
+                                        RIAGENDR + BMXWT + BMXHT +
+                                        + RIDAGEYR + days_gc, family=quasibinomial(),
+                                      design=NHANES_subset_femur) 
 
 osteo_model_ptnNs3_simple <- svyglm(femurneck_osteoporosis ~ ns(PTN, 3) + total_vig_and_mod_min + CHO + LIP + 
-                                     RIAGENDR + BMXWT + BMXHT +
-                                     + RIDAGEYR + days_gc, family=quasibinomial(),
-                                   design=NHANES_subset_femur) 
+                                      RIAGENDR + BMXWT + BMXHT +
+                                      + RIDAGEYR + days_gc, family=quasibinomial(),
+                                    design=NHANES_subset_femur) 
 
 AIC(osteo_model_ptn_simple, osteo_model_ptnPoly2_simple,
     osteo_model_ptnPoly3_simple, osteo_model_ptnNs3_simple) 
@@ -875,8 +829,8 @@ car::Anova(sarc_model_ptnNs3_simple, "II", "F")
 predictions(sarc_model_ptnNs3_simple, by="PTN",
             newdata=get_pred_df(NHANES_subset_femur, predictor="PTN"),
             wts=NHANES_subset_femur$variables$weights_all) |> 
-   mutate(conf.low = if_else(conf.low < 0, 0, conf.low),
-          conf.high = if_else(conf.high > 1, 1, conf.high)) |> 
+  mutate(conf.low = if_else(conf.low < 0, 0, conf.low),
+         conf.high = if_else(conf.high > 1, 1, conf.high)) |> 
   ggplot(aes(x=PTN, y=estimate, ymin=conf.low, ymax=conf.high)) +
   geom_line() +
   xlim(c(0, 250)) +
@@ -894,28 +848,28 @@ plot(predict_response(osteo_model_ptn_simple, "total_vig_and_mod_min [all]"),
   theme_avp()
 
 osteo_model_atv_simple <- svyglm(femurneck_osteoporosis ~ ns(PTN, 3) + total_vig_and_mod_min + CHO + LIP + 
-                                  RIAGENDR + BMXWT + BMXHT +
-                                  + RIDAGEYR + days_gc, family=quasibinomial(),
-                                design=NHANES_subset_femur)
+                                   RIAGENDR + BMXWT + BMXHT +
+                                   + RIDAGEYR + days_gc, family=quasibinomial(),
+                                 design=NHANES_subset_femur)
 
 summary(osteo_model_atv_simple)
 
 car::Anova(osteo_model_atv_simple, "II", "F")
 
 osteo_model_atvPoly2_simple <- svyglm(femurneck_osteoporosis ~ ns(PTN, 3) + poly(total_vig_and_mod_min, 2) + CHO + LIP + 
-                                       RIAGENDR + BMXWT + BMXHT +
-                                       + RIDAGEYR + days_gc, family=quasibinomial(),
-                                     design=NHANES_subset_femur) 
+                                        RIAGENDR + BMXWT + BMXHT +
+                                        + RIDAGEYR + days_gc, family=quasibinomial(),
+                                      design=NHANES_subset_femur) 
 
 osteo_model_atvPoly3_simple <- svyglm(femurneck_osteoporosis ~ ns(PTN, 3) + poly(total_vig_and_mod_min, 3) + CHO + LIP + 
-                                       RIAGENDR + BMXWT + BMXHT +
-                                       + RIDAGEYR + days_gc, family=quasibinomial(),
-                                     design=NHANES_subset_femur) 
+                                        RIAGENDR + BMXWT + BMXHT +
+                                        + RIDAGEYR + days_gc, family=quasibinomial(),
+                                      design=NHANES_subset_femur) 
 
 osteo_model_atvNs3_simple <- svyglm(femurneck_osteoporosis ~ ns(PTN, 3) + ns(total_vig_and_mod_min, 3) + CHO + LIP + 
-                                     RIAGENDR + BMXWT + BMXHT +
-                                     + RIDAGEYR + days_gc, family=quasibinomial(),
-                                   design=NHANES_subset_femur) 
+                                      RIAGENDR + BMXWT + BMXHT +
+                                      + RIDAGEYR + days_gc, family=quasibinomial(),
+                                    design=NHANES_subset_femur) 
 
 AIC(osteo_model_atv_simple,
     osteo_model_atvPoly2_simple,
@@ -957,20 +911,14 @@ predictions(osteo_model_atvPoly3_simple_refitted, by="total_vig_and_mod_min",
 # interação
 
 osteo_interaction <- svyglm(femurneck_osteoporosis ~ ns(PTN, 3) * poly(total_vig_and_mod_min, 3) + CHO + LIP + 
-                             RIAGENDR + BMXWT + BMXHT +
-                             + RIDAGEYR + days_gc, family=quasibinomial,
-                           design=NHANES_subset_femur) 
+                              RIAGENDR + BMXWT + BMXHT +
+                              + RIDAGEYR + days_gc, family=quasibinomial,
+                            design=NHANES_subset_femur) 
 
 car::Anova(osteo_interaction, "II", "F")
 
 AIC(osteo_model_atvPoly3_simple, osteo_interaction) 
-anova(osteo_model_atvPoly3_simple, osteo_interaction) 
-
-osteo_interaction_centered <- svyglm(femurneck_osteoporosis ~ scale(ns(PTN, 3), center=TRUE, scale=FALSE) * 
-                                       scale(poly(total_vig_and_mod_min, 3), center=TRUE, scale=FALSE) + CHO + LIP + 
-                              RIAGENDR + BMXWT + BMXHT +
-                              + RIDAGEYR + days_gc, family=quasibinomial,
-                            design=NHANES_subset_femur) 
+anova(osteo_model_atvPoly3_simple, osteo_interaction) # sem diferença e interação nao significativa
 
 # gráficos de predição
 
@@ -984,7 +932,7 @@ pred_1_selected <- pred_1 |> filter(atv_fisica %in% c(0, 100, 200, 300, 400, 500
 
 (
   osteo_pred_p_1 <- ggplot(pred_1_selected, aes(x=PTN, y=predicted, color=atv_fisica, fill=atv_fisica,
-                                               ymin=conf.low, ymax=conf.high)) +
+                                                ymin=conf.low, ymax=conf.high)) +
     facet_wrap(~atv_fisica, labeller = labeller(atv_fisica = ~ paste(.x, "min/sem"))) +
     geom_ribbon(aes(ymin=conf.low, ymax=conf.high), alpha=.35, color=NA) +
     geom_line() +
@@ -993,7 +941,7 @@ pred_1_selected <- pred_1 |> filter(atv_fisica %in% c(0, 100, 200, 300, 400, 500
          fill="Atividade física\nmoderada e vigorosa\n(min/sem)") +
     scale_color_discrete_sequential(labels=paste0(seq(0, 500, 100), " min/sem"), palette = "Reds", l1 = 25, c2 = 150, p1 = 1) + 
     scale_fill_discrete_sequential(labels=paste0(seq(0, 500, 100), " min/sem"), palette = "Reds", l1 = 25, c2 = 150, p1 = 1) + 
-    scale_x_continuous(limits=c(25, 250)) +
+    #scale_x_continuous(limits=c(25, 250)) +
     # scale_y_continuous(breaks=seq(0, 0.13, 0.01),
     #                    labels=paste0(seq(6, 13, 1), "%")) +
     guides(color='none', fill='none') +
@@ -1033,44 +981,43 @@ ggsave("figuras/plot2_int_osteo_zoom.png", dpi=600, unit="in", height=6, width=6
 
 # calculando quantis com survey
 
-PTN_tile <- svyquantile(~PTN, design=NHANES_subset_femur, quantiles=c(.25, .5, .75))
+PTN_tile <- svyquantile(~PTN, design=NHANES_subset_femur, quantiles=c(.33, .66))
 atv_tile <- svyquantile(~total_vig_and_mod_min, design=NHANES_subset_femur, quantiles=c(.33, .66))
 
 NHANES_subset_femur <- update(NHANES_subset_femur, PTN_tiles = as.factor(case_when(PTN < PTN_tile$PTN[1] ~ "1",
-                                                                         PTN >= PTN_tile$PTN[1] & PTN < PTN_tile$PTN[2] ~ "2",
-                                                                         PTN >= PTN_tile$PTN[2] & PTN < PTN_tile$PTN[3] ~ "3",
-                                                                         PTN >= PTN_tile$PTN[4] ~ "4")))
+                                                                                   PTN >= PTN_tile$PTN[1] & PTN < PTN_tile$PTN[2] ~ "2",
+                                                                                   PTN >= PTN_tile$PTN[2] ~ "3")))
 
 NHANES_subset_femur <- update(NHANES_subset_femur, mvpa_tiles = as.factor(case_when(total_vig_and_mod_min < atv_tile$total_vig_and_mod_min[1] ~ "1",
-                                                                          total_vig_and_mod_min >= atv_tile$total_vig_and_mod_min[1] & total_vig_and_mod_min < atv_tile$total_vig_and_mod_min[2] ~ "2",
-                                                                          total_vig_and_mod_min >= atv_tile$total_vig_and_mod_min[3] ~ "3")))
+                                                                                    total_vig_and_mod_min >= atv_tile$total_vig_and_mod_min[1] & total_vig_and_mod_min < atv_tile$total_vig_and_mod_min[2] ~ "2",
+                                                                                    total_vig_and_mod_min >= atv_tile$total_vig_and_mod_min[2] ~ "3")))
 
-osteo_interaction_cat <- svyglm(femurneck_osteoporosis ~ PTN_tiles * mvpa_tiles + CHO + LIP + 
-                              RIAGENDR + BMXWT + BMXHT +
-                              + RIDAGEYR + days_gc, family=quasibinomial(),
-                            design=NHANES_subset_femur) 
 
-summary(osteo_interaction_cat)
-car::Anova(osteo_interaction_cat, type="II", test="F")
+osteo_cat_interaction <- svyglm(femurneck_osteoporosis ~ PTN_tiles * mvpa_tiles + CHO + LIP + 
+                      RIAGENDR + BMXWT + BMXHT +
+                      + RIDAGEYR + days_gc, family=quasibinomial(),
+                    design=NHANES_subset_femur) 
 
-osteo_int_pred_df <- ggaverage(osteo_interaction_cat, c("PTN_tiles", "mvpa_tiles")) |> as_tibble() |> 
+car::Anova(osteo_cat_interaction, type="II", test="F")
+
+osteo_int_pred_df <- ggaverage(osteo_cat, c("PTN_tiles", "mvpa_tiles")) |> as_tibble() |> 
   rename(ptn = x, mvpa = group) 
 
 ggplot(osteo_int_pred_df, aes(x=ptn, y=predicted, ymin=conf.low, ymax=conf.high, color=mvpa)) +
   #facet_wrap(~mvpa, labeller=as_labeller(c("1" = "1º tercil de atv. física", 
-   #                                       "2" = "2º tercil de atv. física", 
-   #                                       "3" =  "3º tercil de atv. física"))) +
+  #                                       "2" = "2º tercil de atv. física", 
+  #                                       "3" =  "3º tercil de atv. física"))) +
   geom_pointrange(position=position_dodge(.35)) +
   #geom_line(aes(group=mvpa), position=position_dodge(.35)) +
   scale_y_continuous(limits=c(0, .1),
-                    breaks=seq(0, .1, .02),
-                    labels=paste0(seq(0, 10, 2), "%")) +
+                     breaks=seq(0, .1, .02),
+                     labels=paste0(seq(0, 10, 2), "%")) +
   scale_color_discrete_sequential(palette = "Reds", l1 = 25, c2 = 150, p1 = 1,
                                   labels=c("1º tercil de atv. física", "2º tercil de atv. física", 
                                            "3º tercil de atv. física")) + 
-  labs(x="Quartis de consumo de proteína", y="Probabilidade de osteoporose (%)",
+  labs(x="Tercis de consumo de proteína", y="Probabilidade de osteoporose (%)",
        color="Tercis de atividade\nfísica moderada\ne vigorosa") +
-  scale_x_discrete(labels=c("1º quartil", "2º quartil", "3º quartil", "4º quartil")) +
+  scale_x_discrete(labels=c("1º tercil de proteína", "2º tercil de proteína", "3º tercil de proteína")) +
   theme_avp()
 
 ggsave("figuras/plot2_int_osteo_cat.png", dpi=600, unit="in", height=4.5, width=7)
@@ -1091,7 +1038,7 @@ fem_dat <- as_tibble(NHANES_subset_femur$variables)
 
 nrow(fem_dat)
 
-sample_dat <- reduce(list(lm_dat, fem_dat), bind_rows) |> distinct()
+sample_dat <- reduce(list(lm_dat, fem_dat), full_join)
 
 nrow(sample_dat) # sample size
 
@@ -1129,3 +1076,20 @@ table_1_summary
 
 # save
 # table_1_summary |> as_hux_table() |> writexl::write_xlsx("tabelas/tabela1.xlsx")
+
+## summary do banco
+
+lm_dataset <- NHANES_subset_lm$variables |> select(sarc_class, DXDTOLE, PTN, CHO, LIP, total_vig_and_mod_min,  
+                                                   RIAGENDR, BMXWT, BMXHT,
+                                                   RIDAGEYR, days_gc) |> 
+  filter(!is.na(sarc_class))
+
+bone_dataset <- NHANES_subset_femur$variables |> select(DXXNKBMD, femurneck_osteoporosis, PTN, CHO, LIP, total_vig_and_mod_min,  
+                                                        RIAGENDR, BMXWT, BMXHT,
+                                                        RIDAGEYR, days_gc)
+
+rbind(head(lm_dataset, 5), tail(lm_dataset, 5)) |> writexl::write_xlsx("tabelas/Table_2.xlsx")
+
+rbind(head(bone_dataset, 5), tail(bone_dataset, 5)) |> writexl::write_xlsx("tabelas/Table_3.xlsx")
+
+
